@@ -21,3 +21,11 @@ Además, como estudiante, aún me encuentro en proceso de aprendizaje en diverso
     - Fortalezas: Me gusta aprender y comprender a mi grupo cuando alla algun problema de comunicacion, aprendo rapido si se tratan de nuevas herramientas de trabajo, soy muy atento a los detalles para evitar errores grandes, me gusta manejar mi tiempo para poder hacer todo, y estoy abierto al feedback o comentarios que sean pertinentes
 
     - Aspectos a mejorar: Aveces soy muy olvidadizo con las cosas, olvido realizar documentacion y explicar para que sirve el codigo y me conformo con que funcione este
+
+Apartado 2
+Como grupo vamos a seguir los siguientes compromisos y normas:
+# Como utilizaremos la metodología Kanban para organizar y visualizar nuestro trabajo durante el desarrollo del proyecto utilizaremos un tablero compartido con la columnas: tareas pendientes, En progreso, En revisión, Finalizado. Cada tarea debe estar claramente definida, con una descripción breve y fecha estimada de entrega.
+# Después de clase nos reuniremos para hacer seguimiento en la que revisaremos el tablero Kanban bloqueos y avances. De no ser suficiente tiempo, nos reuniremos mediante meet para finalizar lo que falte.
+# Si algún integrante no puede cumplir una tarea debe avisar con anticipación para redistribuir el trabajo.
+# No se harán cambios directamente en la rama principal (main), cada nueva modificación se realizará en una rama independiente y todo cambio debe integrarse mediante Pull Request además antes de hacer merge al menos un integrante debe revisar el código.
+# Las decisiones técnicas se discutiran en grupo, si no hay un acuerdo se tomará la decisión por mayoría y en caso de dudas técnicas importantes se le preguntara al profe antes de avanzar.
