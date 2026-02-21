@@ -16,3 +16,12 @@ En lo técnico, tengo buen manejo en programación especialmente en el lenguaje 
 
 Considero que debo fortalecer mi comunicación, especialmente al momento de expresar ideas técnicas de forma más clara y segura. También quiero mejorar en el manejo del tiempo, organizando mejor mis tareas especialmente para aquellas con fechas límite.
 Además, creo que es importante aprender a pedir ayuda cuando sea necesario, especialmente porque me considero una persona capaz por mí misma, pero se que no todo lo puedo resolver yo solo, y a dar retroalimentación de manera constructiva. Sé que mejorar en estos aspectos me ayudará a ser un mejor integrante de equipo y a aportar de forma más completa.
+## Pregunta 1
+
+### Martin Botina
+
+    - Rol: Me gustaria enfocarme en las pruebas y la calidad, enfocarme en el area del testeo para asegurarme que el proyecto este en su mejor version posible
+
+    - Fortalezas: Me gusta aprender y comprender a mi grupo cuando alla algun problema de comunicacion, aprendo rapido si se tratan de nuevas herramientas de trabajo, soy muy atento a los detalles para evitar errores grandes, me gusta manejar mi tiempo para poder hacer todo, y estoy abierto al feedback o comentarios que sean pertinentes
+
+    - Aspectos a mejorar: Aveces soy muy olvidadizo con las cosas, olvido realizar documentacion y explicar para que sirve el codigo y me conformo con que funcione este
