@@ -2,7 +2,7 @@
 Juan Carlos Manrique Benavides
 1) Dentro de un equipo de desarrollo de software me gustaría desempeñar un rol enfocado en la parte tecnica, especialmente en la arquitectura y el diseño del sistema. Me interesaria participar en la definición de la estructura del software, la elección de patrones de diseño adecuados y la forma en que los diferentes componentes interactúan entre sí.
 2) Puedo aportar conocimientos en bases de datos relacionales como normalización y consultas SQL, además en el desarrollo de interfaces gráficas y en la implementación de la logica de aplicación utilizando lenguajes como Java y Python.
-3) Considero que debo mejorar en la organización de los proyectos como en la planificación y seguimiento de tareas y llevar un control claro del progreso general. Tambien estimar tiempos de manera más realista y mantener una línea clara de pendientes. 
+3) Considero que debo mejorar en la organización de los proyectos como en la planificación y seguimiento de tareas y llevar un control claro del progreso general. Tambien estimar tiempos de manera más realista y mantener una línea clara de pendientes.
 
 ##Johan Alexander Peña Ortiz
 
@@ -36,3 +36,12 @@ En lo técnico, tengo buen manejo en programación especialmente en el lenguaje 
 ### Aspectos por mejorar
 Considero que debo fortalecer mi comunicación, especialmente al momento de expresar ideas técnicas de forma más clara y segura. También quiero mejorar en el manejo del tiempo, organizando mejor mis tareas especialmente para aquellas con fechas límite.
 Además, creo que es importante aprender a pedir ayuda cuando sea necesario, especialmente porque me considero una persona capaz por mí misma, pero se que no todo lo puedo resolver yo solo, y a dar retroalimentación de manera constructiva. Sé que mejorar en estos aspectos me ayudará a ser un mejor integrante de equipo y a aportar de forma más completa.
+
+Apartado 2
+Como grupo vamos a seguir los siguientes compromisos y normas:
+# Como utilizaremos la metodología Kanban para organizar y visualizar nuestro trabajo durante el desarrollo del proyecto utilizaremos un tablero compartido con la columnas: tareas pendientes, En progreso, En revisión, Finalizado. Cada tarea debe estar claramente definida, con una descripción breve y fecha estimada de entrega.
+# Después de clase nos reuniremos para hacer seguimiento en la que revisaremos el tablero Kanban bloqueos y avances. De no ser suficiente tiempo, nos reuniremos mediante meet para finalizar lo que falte.
+# Si algún integrante no puede cumplir una tarea debe avisar con anticipación para redistribuir el trabajo.
+# No se harán cambios directamente en la rama principal (main), cada nueva modificación se realizará en una rama independiente y todo cambio debe integrarse mediante Pull Request además antes de hacer merge al menos un integrante debe revisar el código.
+# Las decisiones técnicas se discutiran en grupo, si no hay un acuerdo se tomará la decisión por mayoría y en caso de dudas técnicas importantes se le preguntara al profe antes de avanzar.
+
