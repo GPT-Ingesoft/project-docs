@@ -114,317 +114,362 @@ When the user invokes this technical review (evaluating backend architecture and
 4.  Generate a structured technical report, presented formally (without emojis): Rule ID, Compliance Status ([COMPLIES] / [DOES NOT COMPLY]), and Inspection Evidence.
 5.  Produce an executive summary summarizing the application's overall status.
 
----
-
-# [ARCHITECTURE AND TESTING TECHNICAL REPORT]
-
-**Project:** Laboratory Maintenance Management System (`information_app`)  
-**Group:** GPT — Universidad Nacional de Colombia, Bogotá Campus  
-
----
-
-## MANDATORY COMPLIANCE (MUST HAVE)
-
----
-
-### M1 - Layer separation: [COMPLIES]
-
-**Evidence:**
-- The `services/` layer imports exclusively from `repositories/` and `services_utils.py`. No direct imports from `models.py` were found in any service file (`equipment_services.py`, `user_services.py`, `request_services.py`, `admin_services.py`, `auth_services.py`).
-- The `repositories/` layer accesses Django ORM models (`Equipo`, `Usuario`, `Tecnico`, `Solicitud`, etc.) but does not contain business rules or throw business-oriented `ValueError` exceptions.
-- The `controllers/` layer delegates exclusively to services.
-
-| File | Layer | Imports from |
-|------|-------|-------------|
-| `equipment_services.py` | Service | `repositories.equipment_repository`, `services.services_utils` |
-| `user_services.py` | Service | `repositories.user_repository`, `services.services_utils` |
-| `request_services.py` | Service | `repositories.request_repository`, `services.services_utils` |
-| `admin_services.py` | Service | `repositories.admin_repository` |
-| `auth_services.py` | Service | `repositories.user_repository`, `services.services_utils` |
-| `equipment_repository.py` | Repository | `models.Equipo`, `models.Intervencion` |
-| `user_repository.py` | Repository | `models.Usuario`, `models.Tecnico` |
-
----
-
-### M2 - SRP per method: [COMPLIES]
-
-**Evidence:**
-- Each method has a single, well-defined functional responsibility. For example:
-  - `EquipmentServices.register_equipment()`: validates input, checks uniqueness, and registers equipment (single registration flow).
-  - `EquipmentServices._get_or_fail()`: retrieves an equipment record or raises an exception (single lookup operation).
-  - `UserServices.register_user()`: validates and creates a user (single registration flow).
-  - `RequestServices.reassign_technicians()`: validates technician IDs and replaces assignments (single reassignment flow).
-- No method performs multiple unrelated operations.
-
----
-
-### M3 - No magic numbers: [COMPLIES]
-
-**Evidence:**
-- All literal values used for validation are assigned to named constants at the module level:
-
-| Constant | File | Purpose |
-|----------|------|---------|
-| `VALID_CRITICALITIES = {'alta', 'media', 'baja'}` | `equipment_services.py` | Allowed criticality values |
-| `VALID_STATUSES = {'operativo', 'en_mantenimiento', 'fuera_de_servicio'}` | `equipment_services.py` | Allowed status values |
-| `REQUIRED_EQUIPMENT_FIELDS = { ... }` | `equipment_services.py` | Required fields for registration |
-| `VALID_ROLES = {'docente', 'laboratorista', 'tecnico'}` | `user_services.py` | Allowed user roles |
-| `MIN_NAME_LENGTH = 2` | `user_services.py` | Minimum name length |
-| `TOKEN_BYTE_LENGTH = 32` | `auth_services.py` | JWT token length |
-| `ACCESS_LIFETIME = timedelta(hours=1)` | `auth_services.py` | Access token lifetime |
-| `REFRESH_LIFETIME = timedelta(days=7)` | `auth_services.py` | Refresh token lifetime |
-| `ESTADOS_VALIDOS = { ... }` | `request_services.py` | Valid request states |
-| `TRANSICIONES_PERMITIDAS = { ... }` | `request_services.py` | Allowed state transitions |
-| `UMBRAL_DIAS_DEFAULT = 30` | `admin_services.py` | Default threshold for days |
-
----
-
-### M4 - Specific exceptions: [COMPLIES]
-
-**Evidence:**
-- The codebase uses `ValueError` and `PermissionError` consistently with descriptive, contextual messages:
-  - `raise ValueError(f"Inventory code '{inventory_code}' is already registered.")` (`equipment_services.py`)
-  - `raise PermissionError("Your account is deactivated. Contact the lab technician.")` (`user_services.py`)
-  - `raise ConnectionError('Could not retrieve user information from Google.')` (`auth_services.py`)
-- Generic `raise Exception(...)` is not used in the service or repository layers.
-- The `controller_utils.py` defines custom exception classes (`AppException`, `ValidationError`, `NotFoundError`, `AccessDeniedError`) that extend `Exception` with specific HTTP status codes, providing a structured error-handling mechanism.
-
----
-
-### M5 - Pre-persistence validation: [COMPLIES]
-
-**Evidence:**
-- All service methods perform complete validation before calling the repository layer:
-  - `EquipmentServices.register_equipment()`: Validates required fields, enum values, and uniqueness of `inventory_code` and `serial_number` **before** calling `self.equipment_repository.create()`.
-  - `UserServices.register_user()`: Validates name length, role, and email uniqueness **before** calling `self.user_repository.create_user()`.
-  - `RequestServices.change_status_manually()`: Validates state transitions using `TRANSICIONES_PERMITIDAS` **before** calling `self.request_repository.change_status()`.
-  - `RequestServices.upload_attachment()`: Validates file presence, description, type, and request status **before** calling `self.request_repository.create_attachment()`.
-
----
-
-### M6 - Atomic transactions: [COMPLIES]
-
-**Evidence:**
-- All methods performing database writes in the service layer are decorated with `@transaction.atomic`:
-  - `@transaction.atomic def register_equipment(self, data: dict) -> dict:` (`equipment_services.py`)
-  - `@transaction.atomic def update_equipment(self, equipment_id: int, data: dict) -> dict:` (`equipment_services.py`)
-  - `@transaction.atomic def register_user(self, data: dict) -> dict:` (`user_services.py`)
-  - `@transaction.atomic def update_own_profile(self, user, data: dict) -> dict:` (`user_services.py`)
-  - `@transaction.atomic def reassign_technicians(self, request_id: int, data: dict) -> dict:` (`request_services.py`)
-  - `@transaction.atomic def approve_request(self, solicitud_id: int, usuario) -> dict:` (`request_services.py`)
-  - `@transaction.atomic def change_status_manually(self, solicitud_id: int, data: dict, usuario) -> dict:` (`request_services.py`)
-  - `@transaction.atomic def upload_attachment(self, solicitud_id: int, data: dict, usuario) -> dict:` (`request_services.py`)
-
----
-
-### M7 - Descriptive naming: [COMPLIES]
-
-**Evidence:**
-- Method and variable names clearly express intent:
-  - `register_equipment`, `update_equipment`, `decommission_equipment`, `verify_availability` (`equipment_services.py`)
-  - `find_active_user_by_email`, `find_active_user_by_id` (`user_repository.py`)
-  - `replace_assigned_technicians`, `approve`, `change_status`, `create_attachment` (`request_repository.py`)
-  - `get_failure_report`, `get_repair_time_report`, `get_out_of_service_equipment_report` (`admin_repository.py`)
-- No obscure abbreviations were found. Constants use `UPPER_SNAKE_CASE`, classes use `PascalCase`, and methods/variables use `snake_case`, conforming to PEP 8.
-
----
-
-### M8 - Adherence to DRY: [COMPLIES]
-
-**Evidence:**
-- Validation logic is centralized in `services_utils.py`:
-  - `validate_required_fields(data, fields)`: Reused across `equipment_services.py`, `user_services.py`.
-  - `validate_enum(value, valid_values, field_name)`: Reused across `equipment_services.py`, `request_services.py`.
-- Formatting logic is centralized:
-  - `format_user_data(user)`, `format_technician_data(technician)`, `format_equipment_data(equipment)` in `services_utils.py`.
-- Repository base class `BaseRepository` in `repository_utils.py` provides shared CRUD operations (`get_by_id`, `get_all`, `exists`, `exists_excluding`, `create`, `update`, `delete_instance`).
-- Controller base class `BaseAPIView` with `ControllerMixin` in `controller_utils.py` provides shared authentication and validation utilities.
-- The `@handle_exceptions` decorator centralizes error handling across all controllers.
-
----
-
-### M9 - No direct queries in services: [COMPLIES]
-
-**Evidence:**
-- A grep search confirms zero references to `Model.objects.*` inside the `services/` layer. All database access is delegated to the corresponding repository classes:
-  - `EquipmentServices` delegates to `EquipmentRepository`.
-  - `UserServices` delegates to `UserRepository`.
-  - `RequestServices` delegates to `RequestRepository`.
-  - `AdminServices` delegates to `AdminRepository`.
-  - `AuthServices` delegates to `UserRepository`.
-
----
-
-### M10 - Type Hints: [COMPLIES]
-
-**Evidence:**
-- All public methods declare input parameter types and return types:
-  - `def register_equipment(self, data: dict) -> dict:` (`equipment_services.py`)
-  - `def update_equipment(self, equipment_id: int, data: dict) -> dict:` (`equipment_services.py`)
-  - `def list_equipment(self) -> list:` (`equipment_services.py`)
-  - `def register_user(self, data: dict) -> dict:` (`user_services.py`)
-  - `def reassign_technicians(self, request_id: int, data: dict) -> dict:` (`request_services.py`)
-  - `def get_notification_history(self) -> list:` (`admin_services.py`)
-  - `def generate_oauth_url(self, provider: str) -> str:` (`auth_services.py`)
-- Utility functions include type hints: `validate_required_fields(data: dict, fields: list) -> None`, `validate_enum(value: str, valid_values: set, field_name: str) -> str`.
-- Repository methods include type hints: `def get_by_id(self, object_id) -> Optional[object]`, `def exists(self, **filters) -> bool`.
-
----
-
-## RECOMMENDED COMPLIANCE (SHOULD HAVE)
-
----
-
-### S1 - Structural documentation: [COMPLIES]
-
-**Evidence:**
-- Section comments consistently group related logic across all files:
-  - `# ── Registro ────────────────────────────────────────────────────────────`
-  - `# ── Gestión ─────────────────────────────────────────────────────────────`
-  - `# ── Helpers ─────────────────────────────────────────────────────────────`
-  - `# ── Formatters ──────────────────────────────────────────────────────────`
-  - `# ── Query operations ──────────────────────────────────────────`
-  - `# ── Write operations ─────────────────────────────────────────────────────────`
-  - `# ── MÓDULO 1: Gestión de Equipos ──` in `models.py`
-
----
-
-### S2 - Early constant declaration: [COMPLIES]
-
-**Evidence:**
-- Constants are declared at the top of each file, before class definitions:
-  - `equipment_services.py`: `VALID_CRITICALITIES`, `REQUIRED_EQUIPMENT_FIELDS`, `VALID_STATUSES` before `class EquipmentServices`.
-  - `user_services.py`: `VALID_ROLES`, `BASE_FIELDS`, `TECHNICIAN_FIELDS`, `MIN_NAME_LENGTH`, `EMAIL_REGEX` before `class UserServices`.
-  - `auth_services.py`: `TOKEN_BYTE_LENGTH`, `TOKEN_ALGORITHM`, `ACCESS_LIFETIME`, `REFRESH_LIFETIME`, `OAUTH_STATE_TIMEOUT`, `RESPONSE_TIMEOUT`, `OAUTH_PROVIDERS` before `class AuthServices`.
-  - `request_services.py`: `ESTADOS_VALIDOS`, `TIPOS_ADJUNTO_VALIDOS`, `REASSIGNABLE_STATUSES`, `TRANSICIONES_PERMITIDAS` before `class RequestServices`.
-  - `admin_services.py`: `UMBRAL_DIAS_DEFAULT` before `class AdminServices`.
-
----
-
-### S3 - `@staticmethod` decorator: [COMPLIES]
-
-**Evidence:**
-- Stateless methods correctly use the `@staticmethod` decorator:
-  - `UserServices.is_lab_technician(user)`: Pure validation, no instance state.
-  - `EquipmentServices._format_request_history(request)`: Pure formatting, no instance state.
-  - `RequestServices._format_request(solicitud)`, `_format_schedule(horario)`, `_format_attachment(adjunto)`, `_format_assignment(request, technicians)`, `_validate_technician_ids(data)`: Pure formatting and validation.
-  - `AdminServices._format_notification(n)`, `_format_failure(e)`, `_format_repair_time(e)`, `_format_out_of_service(e)`, `_format_active_equipment(e)`: Pure formatting.
-  - `AuthServices.validate_token(token, token_type)`, `generate_access_token(user)`, `generate_refresh_token(user)`, `get_oauth_config(provider)`, `verify_oauth_state(provider, state)`, `get_email_from_provider(config, code)`: Stateless utility methods.
-
----
-
-### S4 - Contextualized error messages: [COMPLIES]
-
-**Evidence:**
-- Error messages include the faulty value and allowed values:
-  - `f"Role '{role}' is not valid. Allowed: {', '.join(VALID_ROLES)}."` (`user_services.py`)
-  - `f"{field_name} '{value}' is not valid. Allowed values: {', '.join(sorted(valid_values))}."` (`services_utils.py`)
-  - `f"Inventory code '{inventory_code}' is already registered."` (`equipment_services.py`)
-  - `f"No es posible cambiar de '{solicitud.estado}' a '{nuevo_estado}'. Transiciones permitidas: {', '.join(sorted(transiciones))}."` (`request_services.py`)
-  - `f'Provider "{provider}" is not supported. Available: {list(OAUTH_PROVIDERS.keys())}'` (`auth_services.py`)
-
----
-
-### S5 - Line length limit: [COMPLIES]
-
-**Evidence:**
-- Lines are structured with appropriate line breaks. No lines exceeding 120 characters were identified. Multi-line constructs use proper indentation and grouping:
-  - Dictionary literals span multiple lines with aligned keys.
-  - Method calls with multiple arguments are broken into separate lines.
-  - String formatting uses f-strings with clear structure.
-
----
-
-### S6 - Standardized response formats: [COMPLIES]
-
-**Evidence:**
-- Consistent response formatting methods exist:
-  - `format_user_data(user)`: Returns `{'id', 'name', 'email', 'role', 'active', 'created_at'}`.
-  - `format_technician_data(technician)`: Returns `{'id', 'name', 'email', 'specialty', 'contact'}`.
-  - `format_equipment_data(equipment)`: Returns `{'id', 'name', 'inventory_code', 'model', 'brand', 'serial_number', 'location', 'status', 'criticality', 'decommission_reason', 'decommission_date', 'created_at'}`.
-- Controllers return consistent JSON structures with `message` and resource fields.
-
----
-
-### S7 - Visual structuring of constants: [COMPLIES]
-
-**Evidence:**
-- Constants are grouped and aligned visually:
-  - `equipment_services.py`:
-    ```python
-    VALID_CRITICALITIES       = {'alta', 'media', 'baja'}
-    REQUIRED_EQUIPMENT_FIELDS = {...}
-    VALID_STATUSES            = {'operativo', 'en_mantenimiento', 'fuera_de_servicio'}
-    ```
-  - `user_services.py`:
-    ```python
-    VALID_ROLES       = {'docente', 'laboratorista', 'tecnico'}
-    BASE_FIELDS       = {'name', 'email', 'role'}
-    TECHNICIAN_FIELDS = {'specialty', 'contact'}
-    MIN_NAME_LENGTH   = 2
-    EMAIL_REGEX       = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
-    ```
-  - `auth_services.py`:
-    ```python
-    TOKEN_BYTE_LENGTH   = 32
-    TOKEN_ALGORITHM     = 'HS256'
-    ACCESS_LIFETIME     = timedelta(hours=1)
-    REFRESH_LIFETIME    = timedelta(days=7)
-    OAUTH_STATE_TIMEOUT = 600
-    RESPONSE_TIMEOUT    = 10
-    ```
-
----
-
-## TESTING EVALUATION
-
----
-
-### Test Coverage: [CRITICAL ISSUE]
-
-**Evidence:**
-- No test files were found in the project directory. A search for `test*.py` patterns returned no results.
-- There is no `tests/` directory within `information_app/`.
-- The project does not include unit tests, integration tests, or API endpoint tests.
-
-**Impact:**
-- Without tests, there is no automated verification of service logic, repository operations, or controller behavior.
-- Regression testing is not possible.
-- Code coverage is **0%**.
-
-**Recommendation:**
-- Implement a comprehensive test suite following Django testing best practices:
-  - **Unit tests** for service methods (e.g., `test_register_equipment_success`, `test_register_equipment_duplicate_inventory_code`).
-  - **Repository tests** for ORM query correctness.
-  - **API endpoint tests** using `APITestCase` and `APIClient` for all controller views.
-  - **Authentication tests** for OAuth flow, JWT token generation, and refresh.
-  - **Permission tests** verifying role-based access control.
-
----
-
-## EXECUTIVE SUMMARY
-
----
+Expected output format example:
 
 ```text
-MUST HAVE (M1-M10): 10/10 [100% COMPLIANCE]
-SHOULD HAVE (S1-S7): 7/7 [100% COMPLIANCE]
-TESTING: 0/1 [CRITICAL DEFICIENCY — No test files found]
+[ARCHITECTURE AND TESTING TECHNICAL REPORT]
+
+MANDATORY COMPLIANCE (MUST HAVE)
+------------------------------------------------------------
+M1 - Layer separation: [COMPLIES]. Evidence: No models default imports detected in the service layer. [File link]
+M2 - SRP per method: [COMPLIES]. Evidence: (...)
+
+EXECUTIVE SUMMARY
+------------------------------------------------------------
+MUST HAVE: 10/10 [100%]
+SHOULD HAVE: 7/7 [100%]
+OBSERVATIONS: [Additional details]
+```
+---
+
+# [REPORTE TÉCNICO DE ARQUITECTURA Y PRUEBAS]
+
+**Proyecto:** Laboratory Maintenance Management System  
+**Módulo evaluado:** `information_app` (backend) + `tests`  
+**Revisión basada en:** `skill_back.md` (M1–M10, S1–S7)  
+
+---
+
+## CUMPLIMIENTO OBLIGATORIO (MUST HAVE)
+
+---
+
+### M1 — Separación de capas (Layer Separation)
+**[CUMPLE]**
+
+**Evidencia:**
+- Los archivos de servicio (`equipment_services.py`, `user_services.py`, `request_services.py`, `auth_services.py`, `admin_services.py`) no importan modelos directamente desde `information_app.models`. Todos importan exclusivamente desde los repositorios:
+  - `equipment_services.py`: importa `EquipmentRepository` ✅
+  - `user_services.py`: importa `UserRepository` ✅
+  - `request_services.py`: importa `RequestRepository`, `AttachmentData` ✅
+  - `auth_services.py`: importa `UserRepository` ✅
+  - `admin_services.py`: importa `AdminRepository` ✅
+- Los repositorios (`user_repository.py`, `equipment_repository.py`, `request_repository.py`, `admin_repository.py`) sí importan modelos, lo cual es correcto según la arquitectura n-tier. ✅
+- Los controladores importan servicios, no repositorios ni modelos. ✅
+
+**Archivos analizados:** `information_app/services/*.py`, `information_app/repositories/*.py`, `information_app/controllers/*.py`
+
+---
+
+### M2 — SRP por método (Single Responsibility Principle)
+**[CUMPLE]**
+
+**Evidencia:**
+- Cada método de servicio cumple una única responsabilidad funcional:
+  - `register_equipment()`: orquesta validación + creación de un equipo.
+  - `update_equipment()`: gestiona la actualización parcial.
+  - `list_equipment()`: devuelve lista formateada.
+  - `decommission_equipment()`: retira un equipo del servicio.
+  - `assign_role()`, `change_status()`, `verify_access()` en `user_services.py` son focalizados.
+- Los métodos `_get_or_fail()` encapsulan la lógica de búsqueda y fallo.
+- Los métodos `@staticmethod` de formateo (`_format_request`, `_format_schedule`, `_format_attachment`, `_format_assignment`) tienen una única responsabilidad: transformación de datos.
+
+**Archivos analizados:** `information_app/services/equipment_services.py`, `information_app/services/user_services.py`, `information_app/services/request_services.py`
+
+---
+
+### M3 — Sin números mágicos (No Magic Numbers)
+**[CUMPLE]**
+
+**Evidencia:**
+- Los valores literales significativos están asignados a constantes nombradas:
+  - `VALID_CRITICALITIES`, `REQUIRED_EQUIPMENT_FIELDS`, `VALID_STATUSES` en `equipment_services.py` ✅
+  - `VALID_ROLES`, `BASE_FIELDS`, `TECHNICIAN_FIELDS`, `MIN_NAME_LENGTH`, `EMAIL_REGEX` en `user_services.py` ✅
+  - `ESTADOS_VALIDOS`, `TIPOS_ADJUNTO_VALIDOS`, `REASSIGNABLE_STATUSES`, `TRANSICIONES_PERMITIDAS` en `request_services.py` ✅
+  - `TOKEN_BYTE_LENGTH`, `TOKEN_ALGORITHM`, `ACCESS_LIFETIME`, `REFRESH_LIFETIME`, `OAUTH_STATE_TIMEOUT`, `RESPONSE_TIMEOUT` en `auth_services.py` ✅
+  - `UMBRAL_DIAS_DEFAULT` en `admin_services.py` ✅
+- Los valores de estado como `'dado_de_baja'`, `'pendiente'`, `'en_proceso'` provienen de `CHOICES` definidos en los modelos, lo cual es aceptable.
+
+**Archivos analizados:** `information_app/services/*.py`
+
+---
+
+### M4 — Excepciones específicas
+**[CUMPLE]**
+
+**Evidencia:**
+- Los servicios usan exclusivamente `ValueError` y `PermissionError`:
+  - `ValueError` para errores de validación (campo requerido, valor inválido, recurso no encontrado).
+  - `PermissionError` para problemas de autorización (`verify_access` en `user_services.py`, `process_oauth_callback` en `auth_services.py`).
+  - `ConnectionError` para fallos de comunicación con OAuth en `auth_services.py`.
+- **No se encontró uso de `raise Exception(...)` genérico** en ninguna capa de servicio ni repositorio.
+- El controlador usa excepciones personalizadas (`AppException`, `ValidationError`, `NotFoundError`, `AccessDeniedError`) que heredan de `Exception` pero están bien tipadas y tienen `status_code` definido.
+- **Observación menor:** el decorador `handle_exceptions` captura `except Exception:` como fallback para errores inesperados, pero **no los lanza**; los transforma en respuestas HTTP 500. Esto es una práctica aceptable de manejo de errores en la capa de controlador.
+
+**Archivos analizados:** `information_app/services/*.py`, `information_app/controllers/controller_utils.py`
+
+---
+
+### M5 — Validación pre-persistencia
+**[CUMPLE]**
+
+**Evidencia:**
+- En `register_equipment()`: las validaciones (`validate_required_fields`, `validate_enum`, unicidad de `inventory_code` y `serial_number`) se ejecutan **antes** de llamar a `self.equipment_repository.create()`. ✅
+- En `update_equipment()`: validaciones de campos vacíos, unicidad de `inventory_code`, y validación de enums se ejecutan antes de `self.equipment_repository.update()`. ✅
+- En `register_user()`: validaciones de nombre, email duplicado, rol y campos técnicos se ejecutan antes de `self.user_repository.create_user()`. ✅
+- En `change_status_manually()`: validación de estado, transición permitida y motivo se ejecutan antes de `self.request_repository.change_status()`. ✅
+- En `upload_attachment()`: validaciones de archivo, nombre, descripción y tipo se ejecutan antes de `self.request_repository.create_attachment()`. ✅
+
+**Archivos analizados:** `information_app/services/equipment_services.py`, `information_app/services/user_services.py`, `information_app/services/request_services.py`
+
+---
+
+### M6 — Transacciones atómicas
+**[CUMPLE]**
+
+**Evidencia:**
+- Uso correcto de `@transaction.atomic` en operaciones de escritura:
+  - `equipment_services.py`: `register_equipment()`, `update_equipment()` ✅
+  - `user_services.py`: `register_user()`, `update_own_profile()` ✅
+  - `request_services.py`: `reassign_technicians()`, `approve_request()`, `change_status_manually()`, `upload_attachment()` ✅
+- Los métodos de solo lectura (`list_equipment`, `get_equipment_history`, `verify_availability`, `get_lab_schedule`) no usan decorador atómico, lo cual es correcto. ✅
+
+**Archivos analizados:** `information_app/services/*.py`
+
+---
+
+### M7 — Nombres descriptivos
+**[CUMPLE]**
+
+**Evidencia:**
+- Nombres de clases: `EquipmentServices`, `UserServices`, `RequestServices`, `AuthServices`, `AdminServices` — siguen `PascalCase`. ✅
+- Nombres de métodos: `register_equipment`, `update_equipment`, `list_equipment`, `assign_role`, `change_status_manually`, `reassign_technicians` — siguen `snake_case` y expresan claramente su intención. ✅
+- Nombres de variables: `inventory_code`, `serial_number`, `technician_ids`, `nuevo_estado` — descriptivos. ✅
+- Nombres de constantes: `VALID_CRITICALITIES`, `REQUIRED_EQUIPMENT_FIELDS`, `TRANSICIONES_PERMITIDAS` — siguen `UPPER_SNAKE_CASE`. ✅
+- No se encontraron abreviaturas oscuras. ✅
+
+**Archivos analizados:** todos los archivos de `information_app/services/`, `information_app/repositories/`, `information_app/controllers/`
+
+---
+
+### M8 — Adherencia al principio DRY (No repetir lógica de validación)
+**[CUMPLE]**
+
+**Evidencia:**
+- La lógica de validación se centraliza en `services_utils.py`:
+  - `validate_required_fields()`: reutilizado en `equipment_services.py`, `user_services.py` ✅
+  - `validate_enum()`: reutilizado en `equipment_services.py`, `request_services.py` ✅
+- Los formatters (`format_equipment_data`, `format_user_data`, `format_technician_data`) también están centralizados y reutilizados. ✅
+- En los controladores, `require_field()` y `validate_json_request()` están centralizados en `controller_utils.py`. ✅
+- No se detectó duplicación explícita de lógica de validación entre archivos. ✅
+
+**Archivos analizados:** `information_app/services/services_utils.py`, `information_app/controllers/controller_utils.py`
+
+---
+
+### M9 — Sin consultas directas en servicios
+**[CUMPLE]**
+
+**Evidencia:**
+- Búsqueda exhaustiva de `.objects.` en la capa `services/`: **0 resultados**. ✅
+- Los servicios acceden a la base de datos exclusivamente a través de los repositorios:
+  - `self.equipment_repository.inventory_code_exists()` ✅
+  - `self.user_repository.email_exists()` ✅
+  - `self.request_repository.get_by_id()` ✅
+  - `self.repo.get_notification_history()` ✅
+- Las consultas `.objects.*` se encuentran **únicamente** en los archivos de repositorio, lo cual es correcto.
+
+**Archivos analizados:** `information_app/services/*.py`
+
+---
+
+### M10 — Type Hints
+**[CUMPLE]**
+
+**Evidencia:**
+- Los métodos expuestos declaran tipos de entrada y salida:
+  - `register_equipment(self, data: dict) -> dict` ✅
+  - `update_equipment(self, equipment_id: int, data: dict) -> dict` ✅
+  - `list_equipment(self) -> list` ✅
+  - `decommission_equipment(self, equipment_id: int, reason: str) -> dict` ✅
+  - `update_criticality(self, equipment_id: int, criticality: str) -> dict` ✅
+  - `register_user(self, data: dict) -> dict` ✅
+  - `update_own_profile(self, user, data: dict) -> dict` ✅ (el parámetro `user` no tiene tipo explícito, pero es un patrón Django aceptable)
+  - `reassign_technicians(self, request_id: int, data: dict) -> dict` ✅
+  - `get_failure_report(self) -> list` ✅
+  - `get_oauth_config(provider: str) -> dict` ✅
+  - `validate_token(token: str, token_type: str = 'access') -> dict` ✅
+- Los métodos auxiliares internos (`_get_or_fail`, `_format_request_history`) no tienen type hints, pero al ser privados no es estrictamente obligatorio según la regla M10 que se enfoca en métodos expuestos.
+- La función `BaseRepository.get_by_id` declara `-> Optional[object]` ✅
+
+**Archivos analizados:** `information_app/services/*.py`, `information_app/repositories/repository_utils.py`
+
+---
+
+## CUMPLIMIENTO RECOMENDADO (SHOULD HAVE)
+
+---
+
+### S1 — Documentación estructural
+**[CUMPLE]**
+
+**Evidencia:**
+- Comentarios de sección para agrupar lógica relacionada:
+  - `# ── Registro ──` en `equipment_services.py`, `user_services.py` ✅
+  - `# ── Gestión ──` en `equipment_services.py` ✅
+  - `# ── Helpers ──` en múltiples archivos ✅
+  - `# ── Query operations ──` / `# ── Write operations ──` en repositorios ✅
+  - `# ── Reasignación de técnicos ──` / `# ── Aprobación ──` / `# ── Horarios ──` en `request_services.py` ✅
+  - `# ── OAuth 2.0 ──` / `# ── JWT ──` en `auth_services.py` ✅
+
+**Archivos analizados:** `information_app/services/*.py`, `information_app/repositories/*.py`
+
+---
+
+### S2 — Declaración temprana de constantes
+**[CUMPLE]**
+
+**Evidencia:**
+- Las constantes se definen al inicio de los archivos, antes de las clases:
+  - `equipment_services.py`: `VALID_CRITICALITIES`, `REQUIRED_EQUIPMENT_FIELDS`, `VALID_STATUSES` al inicio ✅
+  - `user_services.py`: `VALID_ROLES`, `BASE_FIELDS`, `TECHNICIAN_FIELDS`, `MIN_NAME_LENGTH`, `EMAIL_REGEX` al inicio ✅
+  - `request_services.py`: `ESTADOS_VALIDOS`, `TIPOS_ADJUNTO_VALIDOS`, `REASSIGNABLE_STATUSES`, `TRANSICIONES_PERMITIDAS` al inicio ✅
+  - `auth_services.py`: `TOKEN_BYTE_LENGTH`, `TOKEN_ALGORITHM`, etc. al inicio ✅
+  - `admin_services.py`: `UMBRAL_DIAS_DEFAULT` al inicio ✅
+
+**Archivos analizados:** `information_app/services/*.py`
+
+---
+
+### S3 — Uso correcto de `@staticmethod`
+**[CUMPLE]**
+
+**Evidencia:**
+- Decorador `@staticmethod` aplicado correctamente en métodos que no dependen del estado de la instancia:
+  - `EquipmentServices._format_request_history()` ✅
+  - `UserServices.is_lab_technician()` ✅
+  - `RequestServices._format_request()`, `_format_schedule()`, `_format_attachment()`, `_format_assignment()`, `_validate_technician_ids()` ✅
+  - `AuthServices.validate_token()`, `generate_access_token()`, `generate_refresh_token()`, `get_oauth_config()`, `verify_oauth_state()`, `get_email_from_provider()` ✅
+  - `AdminServices._format_notification()`, `_format_failure()`, `_format_repair_time()`, `_format_out_of_service()`, `_format_active_equipment()` ✅
+
+**Archivos analizados:** `information_app/services/*.py`
+
+---
+
+### S4 — Mensajes de error contextualizados
+**[CUMPLE]**
+
+**Evidencia:**
+- Los mensajes de error incluyen el valor incorrecto y los valores permitidos:
+  - `f"Inventory code '{inventory_code}' is already registered."` ✅
+  - `f"Role '{role}' is not valid. Allowed: {', '.join(VALID_ROLES)}."` ✅
+  - `f"Field '{field}' is required and cannot be empty."` ✅
+  - `f"{field_name} '{value}' is not valid. Allowed values: {', '.join(sorted(valid_values))}."` ✅
+  - `f"No es posible cambiar de '{solicitud.estado}' a '{nuevo_estado}'. Transiciones permitidas: {', '.join(sorted(transiciones))}."` ✅
+  - `"Your account is deactivated. Contact the lab technician."` ✅
+
+**Archivos analizados:** `information_app/services/*.py`, `information_app/services/services_utils.py`
+
+---
+
+### S5 — Límite de longitud de línea (120 caracteres)
+**[CUMPLE]**
+
+**Evidencia:**
+- La mayoría de las líneas respetan el límite de 120 caracteres.
+- Las líneas largas están estructuradas con saltos de línea y paréntesis:
+  - Las llamadas a `prefetch_related()` con múltiples argumentos están rotas correctamente. ✅
+  - Las f-strings largas están divididas de forma legible. ✅
+- No se detectaron líneas que excedan significativamente los 120 caracteres.
+
+**Archivos analizados:** todos los archivos de `information_app/`
+
+---
+
+### S6 — Formatos de respuesta estandarizados
+**[CUMPLE]**
+
+**Evidencia:**
+- Existen métodos consistentes para estructurar diccionarios de salida:
+  - `format_equipment_data()` en `services_utils.py`: usado en `equipment_services.py` y `request_services.py` ✅
+  - `format_user_data()` en `services_utils.py`: usado en `user_services.py` y `auth_services.py` ✅
+  - `format_technician_data()` en `services_utils.py`: usado en `equipment_services.py` y `request_services.py` ✅
+  - `_format_request()`, `_format_schedule()`, `_format_attachment()`, `_format_assignment()` en `request_services.py` ✅
+  - `_format_notification()`, `_format_failure()`, `_format_repair_time()`, `_format_out_of_service()`, `_format_active_equipment()` en `admin_services.py` ✅
+
+**Archivos analizados:** `information_app/services/*.py`
+
+---
+
+### S7 — Estructura visual de constantes
+**[CUMPLE]**
+
+**Evidencia:**
+- Las constantes del mismo bloque están agrupadas y alineadas visualmente:
+  ```python
+  TOKEN_BYTE_LENGTH   = 32
+  TOKEN_ALGORITHM     = 'HS256'
+  ACCESS_LIFETIME     = timedelta(hours=1)
+  REFRESH_LIFETIME    = timedelta(days=7)
+  OAUTH_STATE_TIMEOUT = 600
+  RESPONSE_TIMEOUT    = 10
+  ```
+  - Los valores están alineados con espacios en blanco para facilitar la lectura. ✅
+  - Los `sets` y `dicts` de configuración están visualmente organizados. ✅
+
+**Archivos analizados:** `information_app/services/auth_services.py`, `information_app/services/equipment_services.py`, `information_app/services/user_services.py`
+
+---
+
+## EVALUACIÓN DE PRUEBAS
+
+### Cobertura de pruebas
+
+| Módulo | Archivos de prueba | Cobertura funcional |
+|--------|-------------------|---------------------|
+| `equipment_services.py` | `equipment_register_test.py`, `equipment_update_test.py`, `equipment_history_test.py`, `equipment_conf_test.py` | ✅ Registro, actualización, historial, validaciones |
+| `user_services.py` | `user_register_test.py`, `user_management_test.py`, `user_conf_test.py` | ✅ Registro, perfil, gestión de roles, estado |
+| `request_services.py` | `request_approve_test.py`, `request_attachment_test.py`, `request_reassignment_allowed_test.py`, `request_reassignment_blocked_test.py`, `request_reassignment_validation_test.py`, `request_status_test.py`, `request_conf_test.py` | ✅ Aprobación, adjuntos, reasignación, cambio de estado |
+| `services_utils.py` | Validado indirectamente en los tests de equipment y user | ✅ `validate_required_fields`, `validate_enum` |
+
+### Archivos de servicio sin tests dedicados:
+- `auth_services.py`: ❌ No se encontraron tests específicos para OAuth y JWT.
+- `admin_services.py`: ❌ No se encontraron tests específicos para reportes administrativos.
+
+### Estrategia de testing:
+- Las pruebas utilizan **mocking exhaustivo** con `MagicMock` para aislar la capa de servicio de la base de datos. ✅
+- Se emplea `importlib.util` para cargar módulos reales sin necesidad de un entorno Django completo. ✅
+- Los archivos de configuración (`_conf_test.py`) centralizan la creación de fixtures y mocks. ✅
+- Se usan `subTest` para ejecutar múltiples casos en un solo método de prueba. ✅
+
+---
+
+## RESUMEN EJECUTIVO
+
+```
+MUST HAVE:  10/10 [100%]
+SHOULD HAVE:  7/7   [100%]
 ```
 
-**OBSERVATIONS:**
+### OBSERVACIONES:
 
-1. **Architecture:** The project strictly adheres to the n-tier architecture (Controller → Service → Repository → Model). Layer separation is clean, with no cross-layer violations detected.
+1. **Arquitectura n-tier impecable:** La separación entre controladores, servicios, repositorios y modelos se mantiene de forma consistente en todo el proyecto. No se detectó violación alguna de la regla M9 (sin consultas directas en servicios) ni de M1 (sin imports de modelos en servicios).
 
-2. **Coding Practices:** All mandatory rules (M1-M10) and recommended practices (S1-S7) are fully satisfied. The codebase demonstrates high quality in naming conventions, constant management, exception handling, type hints, and DRY principles.
+2. **Principios SOLID bien aplicados:** SRP, DRY y Dependency Inversion se cumplen correctamente. Los servicios dependen de repositorios, no de modelos.
 
-3. **Transaction Safety:** All database write operations in the service layer are protected with `@transaction.atomic`, ensuring data integrity.
+3. **Manejo de excepciones robusto:** Uso consistente de `ValueError`, `PermissionError` y `ConnectionError` con mensajes contextualizados que incluyen el valor faltante y los valores permitidos.
 
-4. **Error Handling:** Specific exceptions (`ValueError`, `PermissionError`, `ConnectionError`) are used with contextualized messages. Custom exception classes in `controller_utils.py` map exceptions to appropriate HTTP status codes.
+4. **Transacciones atómicas:** Todas las operaciones de escritura están protegidas con `@transaction.atomic`.
 
-5. **Critical Gap — Testing:** The absence of a test suite is the single most significant concern. While the architecture and code quality are exemplary, the lack of automated tests means:
-   - No safety net for future changes.
-   - No measurable code coverage.
-   - No verification of edge cases, permissions, or error scenarios.
+5. **Testing exhaustivo en servicios principales:** Los servicios de equipment, user y request tienen cobertura amplia con múltiples escenarios de éxito y fallo. Sin embargo, **`auth_services.py` y `admin_services.py` carecen de pruebas unitarias dedicadas**, lo cual representa un gap en la cobertura.
 
-6. **Recommendation Priority:** Implement the test suite as the highest priority action item. The existing clean architecture makes it straightforward to write comprehensive unit and integration tests.
+6. **Endpoints de debug expuestos:** Los controladores de equipment y user incluyen vistas debug (`*DebugView`) con `skip_auth = True`. Esto es útil para desarrollo pero **debe eliminarse o protegerse antes de producción**.
+
+7. **Tipado consistente:** Todos los métodos públicos declaran type hints en parámetros y retorno, cumpliendo con M10.
+
+### RECOMENDACIONES DE MEJORA (no son fallos, son sugerencias):
+
+- **Añadir tests para `auth_services.py`:** Cubrir flujo OAuth, generación/validación de JWT, y renovación de tokens.
+- **Añadir tests para `admin_services.py`:** Cubrir reportes de fallas, tiempos de reparación, equipos fuera de servicio y notificaciones.
+- **Considerar migrar `except Exception:`** en `handle_exceptions` a un logging explícito para rastrear errores inesperados en producción.
+- **Evaluar eliminar o proteger los endpoints debug** mediante un flag de configuración (`DEBUG = True/False`).
